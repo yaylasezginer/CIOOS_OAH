@@ -1,0 +1,165 @@
+function gas_Schmidt_number = eh_schmidt(S,T,gas)
+
+% eh_schmidt   Schmidt number of a gas in seawater
+%=========================================================================
+% 
+% USAGE:  gas_Schmidt_number = eh_schmidt(S,T,gas)
+%
+% DESCRIPTION:
+%    Calculates the Schmidt number of a gas in seawater at the given 
+%    salinity and temperature of the water and a hydrostatic pressure of 0 
+%    dbar (surface)
+%
+% INPUT:  (if S and T are not singular they must have same dimensions)
+%   S = practical salinity    [PSS-78 scale]
+%   T = temperature [degree C, ITS-90 scale]
+%   gas = gas for which to calculate Schmidt number, possible values:
+%       'N2','O2','Ar','CO2','Ne','He','CH4','Kr','Xe','CFC-12','CFC-11','SF6','DMS','Rn'
+%
+% OUTPUT:
+%   gas_Schmidt_number = Schmidt number of the gas [unitless]
+%
+% REFERENCE:
+%   Appendix E, Chemical Oceanography: Element Fluxes in the Sea
+%       Emerson, S.R., R.C. Hamme 2022
+%       Cambridge University Press
+%   and references therein for diffusion coefficients
+%   Sharqawy, M. H., J. H. Lienhard, and S. M. Zubair (2010) 
+%       The thermophysical properties of seawater:
+%       a review of existing correlations and data, 
+%       Desalination and Water Treatment, 16, 354-380.
+%   Unesco 1983. Algorithms for computation of fundamental properties of 
+%      seawater, 1983. Unesco Tech. Pap. in Mar. Sci., No. 44, 53 pp.
+%
+% VERSION 1.0 : 17 March 2022
+% AUTHOR: Roberta C. Hamme (University of Victoria) 
+% This software is available from http://www.cambridge.org/emerson-hamme
+% as part of Chemical Oceanography: Element Fluxes in the Sea (2022) 
+% by Steven R. Emerson and Roberta C. Hamme
+%=========================================================================
+
+%----------------------
+% Check input parameters
+%----------------------
+
+% check number of input parameters is correct
+if nargin ~= 3
+   error('Must pass input 3 parameters')
+end %if
+
+% check datatypes of input parameters are correct
+validateattributes(S,{'numeric'},{'nonempty'},mfilename,'S:salinity')
+validateattributes(T,{'numeric'},{'nonempty'},mfilename,'T:temperature')
+validateattributes(gas,{'char'},{'nonempty'},mfilename,'gas')
+
+% check S,T dimensions and verify they have the same shape or are singular
+[rs,cs] = size(S);
+[rt,ct] = size(T);
+if ((rs~=rt) || (cs~=ct)) && (rs+cs>2) && (rt+ct>2)
+   error('S & T must have same dimensions or be singular')
+end %if
+
+% check that gas is one of the supported values
+expectedGases = {'N2','O2','Ar','CO2','Ne','He','CH4','Kr','Xe','CFC-12','CFC-11','SF6','DMS','Rn'};
+if sum(strcmp(gas,expectedGases))==0
+    error('Expected input parameter gas to match one of these values:\n''%s'', ''%s'', ''%s'', ''%s'', ''%s'', ''%s'', ''%s'', ''%s'', ''%s'', ''%s'', ''%s'', ''%s'', ''%s'', or ''%s''','N2','O2','Ar','CO2','Ne','He','CH4','Kr','Xe','CFC-12','CFC-11','SF6','DMS','Rn');
+end %if
+
+
+%------
+% BEGIN
+%------
+
+% Set constants for calculation
+switch gas
+    case 'N2'
+        A = 3412e-5;
+        Ea = 18.50e3;
+    case 'O2'
+        A = 4286e-5;
+        Ea = 18.70e3;
+    case 'Ar'
+        A = 2227e-5;
+        Ea = 16.68e3;
+    case 'CO2'
+        A = 5019e-5;
+        Ea = 19.51e3;
+    case 'Ne'
+        A = 1608e-5;
+        Ea = 14.84e3;
+    case 'He'
+        A = 818e-5;
+        Ea = 11.70e3;
+    case 'CH4'
+        A = 3047e-5;
+        Ea = 18.36e3;
+    case 'Kr'
+        A = 6393e-5;
+        Ea = 20.20e3;
+    case 'Xe'
+        A = 9007e-5;
+        Ea = 21.61e3;
+    case 'CFC-12'
+        A = 3600e-5;
+        Ea = 20.1e3;
+    case 'CFC-11'
+        A = 1500e-5;
+        Ea = 18.1e3;
+    case 'SF6'
+        A = 2900e-5;
+        Ea = 19.3e3;
+    case 'DMS'
+        A = 2000e-5;
+        Ea = 18.1e3;
+    case 'Rn'
+        A = 15877e-5;
+        Ea = 23.26e3;
+end %switch
+
+% Molecular diffusion coefficient of gas in pure water
+temp_K = T+273.15;
+gas_diffusion_coef_0sal = A*exp(-Ea./(8.314462*temp_K));
+
+% Correct molecular diffusion coefficient for salinity
+gas_diffusion_coef = gas_diffusion_coef_0sal .* (1-0.049*S/35.5);
+
+% Dynamic viscosity of pure water in atm
+dyn_viscosity_0sal = 4.2844e-5 + (0.157*(T + 64.993).^2 - 91.296).^-1;
+
+% Correct dynamic viscosity for salinity
+A = 1.541 + 1.998e-2*T - 9.52e-5*T.^2;
+B = 7.974 - 7.561e-2*T + 4.724e-4*T.^2;
+dyn_viscosity = dyn_viscosity_0sal .* (1 + A.*S/1000 + B.*(S/1000).^2);
+
+% Convert temperature on ITS-90 scale to IPTS-68 scale for use with density
+% equations
+T = 1.00024 * T;
+  
+% Calculate density of pure water
+a0 = 999.842594;
+a1 =   6.793952e-2;
+a2 =  -9.095290e-3;
+a3 =   1.001685e-4;
+a4 =  -1.120083e-6;
+a5 =   6.536332e-9;
+
+dens_0sal = a0 + a1*T + a2*T.^2 + a3*T.^3 + a4*T.^4 + a5*T.^5;
+
+% Correct density for salinity
+b0 =  8.24493e-1;
+b1 = -4.0899e-3;
+b2 =  7.6438e-5;
+b3 = -8.2467e-7;
+b4 =  5.3875e-9;
+
+c0 = -5.72466e-3;
+c1 = +1.0227e-4;
+c2 = -1.6546e-6;
+
+d0 = 4.8314e-4;
+
+density = dens_0sal + (b0 + b1*T + b2*T.^2 + b3*T.^3 + b4*T.^4).*S + (c0 + c1*T + c2*T.^2).*S.^1.5 + d0*S.^2;
+
+kin_viscosity = dyn_viscosity ./ density;
+
+gas_Schmidt_number = 1e4 * kin_viscosity ./ gas_diffusion_coef;

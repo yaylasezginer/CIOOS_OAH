@@ -1,0 +1,49 @@
+close all 
+clearvars
+clc
+
+% Read Sensor Network Log  - Use log to fill missing details and download missing data
+
+home = fileparts(which(mfilename));
+parentDir = fileparts(home);
+projectDir = fileparts(parentDir);
+SensorNetworkLog = readtable([projectDir '/config/SensorNetwork.csv']);
+
+missingCoords = any(isnan([SensorNetworkLog.sscX, SensorNetworkLog.sscY]),2);
+
+[SensorNetworkLog.sscX(missingCoords), SensorNetworkLog.sscY(missingCoords)] = latlon2salishgrid(SensorNetworkLog.siteLat(missingCoords), SensorNetworkLog.siteLon(missingCoords));
+
+% update SensorNetwork with new information
+writetable(SensorNetworkLog,[projectDir '/config/SensorNetwork.csv'])
+
+% If a site has no sscDir in the SensorNetworkLog, assume ERDDAP extraction
+% hasn't taken place yet. 
+
+missingDir = find(isnan(SensorNetworkLog.sscDir) | SensorNetworkLog.sscX == -999);
+sscExtraction = SensorNetworkLog(missingDir,:);
+downloadsDir = [projectDir '/data/SSC_virtualmoorings'];
+
+
+for i = 1:height(sscExtraction)
+    % Call terminal shell script to download Salish Sea Cast data from ERDDAP
+    % Note this can take a very long time if running for the first time. 
+    siteID = sscExtraction.siteID{i};
+    x = sscExtraction.sscX(i);
+    y = sscExtraction.sscY(i);
+
+    disp(['ERDDAP extraction in process for ' siteID '- please be patient'])
+    
+    cmd = sprintf('bash parallel_erddapDownload.sh "%s" %d %d', siteID, x, y);
+    setenv('PATH', [getenv('PATH') ':/opt/homebrew/bin:/usr/local/bin']);
+    system(cmd, 'echo-');
+
+    % Compile monthly downloaded SalishSeaCast files into a single .nc file
+    savedir = compile_SSC_sensor_network(siteID, donwloadsDir);
+    
+    % Update log on each iteration to track progress if MATLAB quits
+    SensorNetworkLog.sscDir{missingDir(i)} = savedir;
+    writetable(SensorNetworkLog,[projectDir 'config/SensorNetwork.csv'])
+end
+
+
+
