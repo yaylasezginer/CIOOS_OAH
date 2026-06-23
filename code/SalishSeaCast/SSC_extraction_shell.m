@@ -30,19 +30,21 @@ for i = 1:height(sscExtraction)
     siteID = sscExtraction.siteID{i};
     x = sscExtraction.sscX(i);
     y = sscExtraction.sscY(i);
+    siteDepth = sscExtraction.siteDepth{i};
 
     disp(['ERDDAP extraction in process for ' siteID '- please be patient'])
     
     cmd = sprintf('bash parallel_erddapDownload.sh "%s" %d %d', siteID, x, y);
     setenv('PATH', [getenv('PATH') ':/opt/homebrew/bin:/usr/local/bin']);
-    system(cmd, 'echo-');
+    system(cmd, '-echo');
+    system('parallel --citation')
 
     % Compile monthly downloaded SalishSeaCast files into a single .nc file
-    savedir = compile_SSC_sensor_network(siteID, donwloadsDir);
+    savedir = compile_SSC_sensor_network(siteID, siteDepth, downloadsDir);
     
     % Update log on each iteration to track progress if MATLAB quits
     SensorNetworkLog.sscDir{missingDir(i)} = savedir;
-    writetable(SensorNetworkLog,[projectDir 'config/SensorNetwork.csv'])
+    writetable(SensorNetworkLog,[projectDir '/config/SensorNetwork.csv'])
 end
 
 
