@@ -17,9 +17,9 @@ missingCoords = any(isnan([SensorNetworkLog.sscX, SensorNetworkLog.sscY]),2);
 writetable(SensorNetworkLog,[projectDir '/config/SensorNetwork.csv'])
 
 % If a site has no sscDir in the SensorNetworkLog, assume ERDDAP extraction
-% hasn't taken place yet. 
+% hasn't taken place yet. ssc X = -999 indicates site out of SSC domain
 
-missingDir = find(isnan(SensorNetworkLog.sscDir) | SensorNetworkLog.sscX == -999);
+missingDir = find(cellfun(@isempty,SensorNetworkLog.sscDir) & SensorNetworkLog.sscX ~= -999);
 sscExtraction = SensorNetworkLog(missingDir,:);
 downloadsDir = [projectDir '/data/SSC_virtualmoorings'];
 
